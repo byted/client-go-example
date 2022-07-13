@@ -71,20 +71,14 @@ func (t goClientFacade) DeleteNamespace(nsName string) error {
 }
 
 func (t goClientFacade) ListPodsByLabel(label string) (map[string][]string, error) {
-	namespaces, err := t.FetchNamespaces()
+	podList, err := t.client.Pods(apiv1.NamespaceAll).List(context.TODO(), metav1.ListOptions{LabelSelector: label})
 	if err != nil {
 		return nil, fmt.Errorf("ListPodsByLabel failed: %w", err)
 	}
 
 	nsToPods := make(map[string][]string)
-	for _, ns := range namespaces {
-		podList, err := t.client.Pods(ns).List(context.TODO(), metav1.ListOptions{LabelSelector: label})
-		if err != nil {
-			return nil, fmt.Errorf("ListPodsByLabel failed: %w", err)
-		}
-		for _, pod := range podList.Items {
-			nsToPods[ns] = append(nsToPods[ns], pod.Name)
-		}
+	for _, pod := range podList.Items {
+		nsToPods[pod.Namespace] = append(nsToPods[pod.Namespace], pod.Name)
 	}
 	return nsToPods, nil
 }
