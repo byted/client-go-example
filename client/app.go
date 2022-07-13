@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"path/filepath"
 
 	k8client "github.com/byted/client-go-example/client/internal"
@@ -20,7 +21,7 @@ func main() {
 
 	client, err := k8client.New(*kubeconfig)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	listResources(client, *labelSelector)
@@ -43,13 +44,13 @@ func main() {
 func listResources(client k8client.K8client, labelSelector string) {
 	namespaces, err := client.FetchNamespaces()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	fmt.Println("available namespaces:", namespaces)
 
 	nsToPods, err := client.ListPodsByLabel(labelSelector)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	fmt.Println("available pods with label", labelSelector, ":", nsToPods)
 }
@@ -57,19 +58,19 @@ func listResources(client k8client.K8client, labelSelector string) {
 func createResources(client k8client.K8client, newNamespaceName string, newPodName string) {
 	err := client.CreateNamespace(newNamespaceName)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	fmt.Println("created namespace:", newNamespaceName)
 
 	err = client.CreatePod(newNamespaceName, newPodName)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	fmt.Println("created pod", newPodName, "in namespace", newNamespaceName)
 
 	port, err := client.ExposePodOnNode(newNamespaceName, newPodName, 30000)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	fmt.Println("exposed pod", newPodName, "on node port", port)
 }
@@ -77,13 +78,13 @@ func createResources(client k8client.K8client, newNamespaceName string, newPodNa
 func deleteResources(client k8client.K8client, newNamespaceName string, newPodName string) {
 	err := client.DeletePod(newNamespaceName, newPodName)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	fmt.Println("deleted pod", newPodName, "in namespace", newNamespaceName)
 
 	err = client.DeleteNamespace(newNamespaceName)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	fmt.Println("deleted namespace", newNamespaceName)
 }
