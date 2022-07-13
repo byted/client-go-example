@@ -3,12 +3,16 @@ package k8client
 import (
 	"context"
 	"fmt"
+	"time"
 
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -20,10 +24,12 @@ type K8client interface {
 	CreatePod(string, string) error
 	DeletePod(string, string) error
 	ExposePodOnNode(string, string, int32) (int32, error)
+	InitPodExposerInformer()
 }
 
 type goClientFacade struct {
-	client v1.CoreV1Interface
+	clientset *kubernetes.Clientset
+	client    v1.CoreV1Interface
 }
 
 func New(kubeconfigPath string) (K8client, error) {
@@ -37,7 +43,7 @@ func New(kubeconfigPath string) (K8client, error) {
 		return nil, fmt.Errorf("Creating new K8client failed: %w", err)
 	}
 
-	return goClientFacade{clientset.CoreV1()}, nil
+	return goClientFacade{clientset, clientset.CoreV1()}, nil
 }
 
 func (t goClientFacade) FetchNamespaces() ([]string, error) {
@@ -153,4 +159,27 @@ func (t goClientFacade) ExposePodOnNode(nsName string, podName string, port int3
 		return 0, fmt.Errorf("ExposePodOnNode failed: %w", err)
 	}
 	return svc.Spec.Ports[0].NodePort, nil
+}
+
+func (t goClientFacade) InitPodExposerInformer() {
+	informerfactory := informers.NewSharedInformerFactory(t.clientset, 60*time.Second)
+
+	podinformer := informerfactory.Core().V1().Pods()
+	podinformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			newPod := obj.(*apiv1.Pod)
+			if newPod.Labels["created-by"] == "client-go-example" {
+				t.ExposePodOnNode(newPod.Namespace, newPod.Name, 30000)
+				fmt.Println("Created service for pod", newPod.Name, "to expose on Node")
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			pod := obj.(*apiv1.Pod)
+			if pod.Labels["created-by"] == "client-go-example" {
+				fmt.Println("Deleting service for deleted pod", pod.Name, "not implemented")
+			}
+		},
+	})
+	informerfactory.Start(wait.NeverStop)
+	informerfactory.WaitForCacheSync(wait.NeverStop)
 }

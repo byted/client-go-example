@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
+	"time"
 
 	k8client "github.com/byted/client-go-example/client/internal"
 	"k8s.io/client-go/util/homedir"
@@ -25,6 +26,7 @@ func main() {
 	}
 
 	listResources(client, *labelSelector)
+	client.InitPodExposerInformer()
 	fmt.Println()
 
 	if !*deleteOnly {
@@ -67,12 +69,6 @@ func createResources(client k8client.K8client, newNamespaceName string, newPodNa
 		log.Fatal(err)
 	}
 	fmt.Println("created pod", newPodName, "in namespace", newNamespaceName)
-
-	port, err := client.ExposePodOnNode(newNamespaceName, newPodName, 30000)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("exposed pod", newPodName, "on node port", port)
 }
 
 func deleteResources(client k8client.K8client, newNamespaceName string, newPodName string) {
@@ -82,6 +78,7 @@ func deleteResources(client k8client.K8client, newNamespaceName string, newPodNa
 	}
 	fmt.Println("deleted pod", newPodName, "in namespace", newNamespaceName)
 
+	time.Sleep(2 * time.Second) // sleep to allow Informer to react
 	err = client.DeleteNamespace(newNamespaceName)
 	if err != nil {
 		log.Fatal(err)
